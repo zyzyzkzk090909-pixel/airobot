@@ -1,179 +1,101 @@
-# ChatRobot
+# 小型AI对话流 App（ChatRobot）
 
-聊天与多模态助手应用，支持文本对话、图片理解与图片生成，面向移动端的顺畅体验与清晰架构。项目采用 Kotlin + Jetpack Compose 构建界面，Room + DataStore 管理持久化数据，Retrofit/OkHttp 接入 Doubao Ark（火山方舟）端点，MVVM + Repository 保持清晰的层次与可测试性。
+本项目定位为“小型 AI 对话流 App”，在移动端统一文本对话、图片理解与图片生成三条能力链路，提供顺畅、连贯且可扩展的产品体验。项目采用 Kotlin + Jetpack Compose 构建界面，MVVM + Repository 保持分层清晰，Room + DataStore 管理持久化数据，网络层以 Retrofit/OkHttp 接入 Doubao Ark（火山方舟）端点。你所做的改动也已纳入本 README：包括“思考时双圈动画指示”“数据存储功能”“登录功能”等。
 
-> 本 README 为详细版，包含完整的功能说明、架构解析、实现细节、构建部署、测试与运维指南、常见问题、开发约定与贡献流程，帮助你在最短时间内理解、构建并扩展本项目。
+## 一、基础项目说明
 
-## 目录
-- 1. 概述与目标
-- 2. 功能特性
-- 3. 产品体验细节
-- 4. 技术栈与版本
-- 5. 快速开始
-- 6. 架构总览
-- 7. 持久层设计（Room + DataStore）
-- 8. 网络层与模型接入（Retrofit/OkHttp + Doubao Ark）
-- 9. 视图模型与状态管理（MVVM + Flow/StateFlow）
-- 10. UI 层（Jetpack Compose）
-- 11. 核心功能实现与关键代码片段
-- 12. 导航与路由（Navigation）
-- 13. 登录注册与安全策略
-- 14. 历史会话与摘要生成
-- 15. 图片理解与图片生成链路
-- 16. 主题与字体偏好（DataStore）
-- 17. 错误处理与失败重试机制
-- 18. 构建与发布
-- 19. 配置与密钥管理
-- 20. 测试（单元/仪器/UI）
-- 21. 性能优化
-- 22. 安全与隐私
-- 23. 国际化与无障碍
-- 24. 日志与监控
-- 25. CI/CD 流程（可选）
-- 26. 代码结构索引
-- 27. 开发约定与代码风格
-- 28. 分支与版本管理
-- 29. 贡献指南
-- 30. Roadmap（路线图）
-- 31. 常见问题与故障排查
-- 32. 变更记录建议
-- 33. 许可证
+- 名称：ChatRobot（小型AI对话流 App）
+- 目标：统一文本对话、视觉理解、文生图能力链路，兼顾性能与移动端体验
+- 框架：Kotlin、Jetpack Compose、MVVM、Room、DataStore、Retrofit/OkHttp、Navigation
+- 设备要求：Android（JDK 17；Gradle Wrapper 8.9；AGP 8.7.0；Compose 编译器 1.5.14）
 
----
+## 二、应用分析
 
-## 1. 概述与目标
-- 定位为“小型 AI 对话流 App”，统一文本对话、视觉理解、文生图三条能力链路，提供流畅移动端体验。
-- 目标强调：易扩展、清晰架构、可维护、可测试、对开发者友好。
-- 面向场景：日常问答、图像理解（截图/海报/表格/照片）、快速图像生成与灵感探索。
+- 文本对话：多轮会话，自动携带最近 10 条上下文，回复更连贯
+- 图片理解：支持本地图片与网络图片，自动选择 `input_image` 或 `image_url`
+- 图片生成：返回 `b64_json`，在聊天气泡内直接显示
+- 历史会话：标题（≤12 字）、摘要（首条问题 + 最近回答）、重命名、删除
+- 模型选择：横向卡片选择文本/视觉/文生图及自定义 `ep-...` 接入点
+- 主题与 UI：统一浅灰主题，顶部栏随浅色/深色模式切换；输入栏贴底
+- 失败重试：失败消息右侧显示红色感叹号，点击重试最近用户消息；列表尾部显示统一 Typing 指示
+- 思考指示：你新增的双圈思考动画，显示模型响应中的“思考状态”与“输出准备”两个阶段
 
-## 2. 功能特性
-- 文本对话
-  - 多轮会话，自动携带最近 N 条上下文（默认 10）
-  - 自动生成会话标题（≤12 字），保证历史列表简洁
-- 图片理解
-  - 支持本地图片 `content://` 与网络图片 `http(s)`
-  - 本地图片自动编码为 Base64 并以 `input_image` 提交
-  - 网络图片直接以 `image_url` 提交
-- 图片生成
-  - 文生图返回 `b64_json`，在气泡内直接显示
-  - 支持保存当前图片到会话或设备（系统分享）
-- 历史会话管理
-  - 标题、摘要（首条问题 + 最近回答）、重命名、删除
-  - 会话切换不会丢失上下文
-- 模型选择
-  - 横向卡片切换文本/视觉/文生图，以及自定义 `ep-...` 接入点
-- 主题与字体
-  - 统一浅灰主题，随浅色/深色模式变化
-  - 全局字体大小“小/中/大”三档，实时生效
-- 失败重试
-  - 失败消息右侧显示红色感叹号，点击即可重试最近用户消息
-  - 列表尾部统一 Typing 指示，避免气泡内“转圈”干扰阅读
+## 三、功能介绍
 
-## 3. 产品体验细节
-- 输入栏贴底，适配键盘与安全区域，保证操作顺手
-- 顶部栏随主题切换呈现浅色/深色背景，操作入口集中且不复杂
-- 历史与配置在顶部/抽屉中快速切换，避免多层级导航
-- 图片理解对比文生图的入口清晰，避免误操作
-- 错误提示采用非阻断式，保持对话流畅性
+- 与机器人智能聊天（核心）：文本对话、上下文记忆与自动标题
+- 图片理解：本地 `content://` 自动转 Base64 以 `input_image` 提交；网络 `http(s)` 以 `image_url` 提交
+- 图片生成：文生图返回 `b64_json`，聊天气泡内直接展示
+- 历史会话：标题（≤12 字）、摘要（首条问题 + 最近回答）、重命名与删除
+- 模型选择：横向卡片切换文本/视觉/文生图及 `ep-...` 接入点
+- 登录与用户：注册/登录；登录后加载用户专属数据与配置
+- 数据存储：持久化消息、会话、配置与用户数据；主题与字体偏好存储于 DataStore
+- 思考双圈动画：两个独立圆形指示器分别代表“思考/推理中”和“结果生成中”，与你的 UI 设定一致
 
-## 4. 技术栈与版本
-- Kotlin：`1.9.24`
-- Jetpack Compose 编译器扩展：`1.5.14`
-- Gradle Wrapper：`8.9`
-- Android Gradle Plugin：`8.7.0`
-- JDK：`17`
-- 核心库：Room、DataStore、Retrofit、OkHttp、Navigation、Coroutines、Flow
+## 四、应用架构
 
-## 5. 快速开始
-1. 克隆仓库并在 Android Studio 打开
-2. 在项目根目录创建或编辑 `local.properties`：
-   ```
-   DOUBAO_API_KEY=你的Ark密钥
-   ```
-3. 同步并构建：
-   ```
-   ./gradlew.bat :app:assembleDebug
-   ```
-4. 连接设备或启动模拟器，运行 App
-5. 在配置页输入或管理模型接入点与参数（如 `ep-...`）
+### 持久层
 
-提示：`local.properties` 已在 `.gitignore` 中忽略，切勿提交密钥到仓库。
+```mermaid
+graph LR
+A(持久层) --> B(Room)
+A --> C(DataStore)
+```
 
-## 6. 架构总览
-- 分层：UI（Compose）→ ViewModel（MVVM）→ Repository → 数据源（Room/DataStore/Network）
-- 单向数据流：Repository 暴露 `Flow/StateFlow`，ViewModel 收集并转换为 UI 状态，Compose 使用 `collectAsState()` 渲染。
-- 依赖注入：通过 `AppContainer` 与 `AppViewModelProvider` 管理仓库实例与偏好存储注入，应用级 `ChatApplication` 负责初始化。
+持久层负责保存用户数据与应用配置，包括用户与机器人对话记录、会话摘要与标题、用户注册登录信息以及主题与字体偏好等。应用退出后重新进入时，先从数据库与 DataStore 获取数据并加载到界面，实现数据“持久”存在。
 
-## 7. 持久层设计（Room + DataStore）
-- Room
-  - 实体：`Message` / `User` / `Config` / `Conversation`（按项目需要扩展）
-  - DAO：基础 CRUD 与特定查询（按用户、时间排序等）
-  - Database：`ChatDb` 单例，`fallbackToDestructiveMigration()` 简化迁移（生产环境建议自定义迁移）
-- DataStore（Preferences）
-  - 存储主题与字体偏好等简单键值对
-  - 通过 `Flow` 暴露数据，界面实时响应
+#### Room
 
-### Room 示例
+![数据库架构示意](https://cdn.jdysya.top/lsky/2023/02/04/1/a419f54c8d86a674.png)
+
+实体（可按需增减）：
+1. `Config`（配置表）
+2. `Message`（消息表）
+3. `User`（用户表）
+4. `Conversation`（会话表，可选，用于管理会话级摘要与标题）
+
+DAO（数据访问对象）：
+- 提供插入/查询/更新的抽象接口，隐藏底层 SQL 复杂性
+
+数据库类：
+- `ChatDb` 聚合实体与 DAO，提供单例访问与迁移策略
+
+#### DataStore
+
+在不需要存储关系型数据的情况下，DataStore 适合存储简单键值对，开销较低。本应用使用 Preferences DataStore 存储主题与字体大小偏好，并以 Flow 方式获取，使 UI 能够快速响应配置变化。
+
+### 网络层
+
+![网络层示意](https://cdn.jdysya.top/lsky/2023/02/03/1/604682b8e696e908.png)
+
+网络层使用 Retrofit 对接口进行访问，OkHttp 管理连接与超时，并通过 Gson 将 JSON 数据转为预定义对象。考虑到视觉与文生图请求可能耗时较长，读/连/写超时统一设置为 60s。
+
+示例返回对象：
 ```kotlin
-@Entity(tableName = "message")
-data class Message(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val name: String,
-    val time: Long,
-    val content: String,
-    @ColumnInfo(name = "user_id") val userId: Int,
-    val isSelf: Boolean
+data class ChatResponse(
+    val id: String,
+    val created: Int,
+    val model: String,
+    val choices: List<Choice>,
+    val usage: Usage
 )
-
-@Dao
-interface MessageDao {
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insert(message: Message)
-
-    @Query("SELECT * from message WHERE id = :id")
-    fun getMessage(id: Int): Flow<Message>
-
-    @Query("Select * from  message where user_id = :userId order by time asc")
-    fun getAllMessagesByUserId(userId: Int): Flow<List<Message>>
-}
 ```
 
-### DataStore 示例
+### 界面层
+
+界面层采用 Jetpack Compose，主要组件包括聊天消息列表与贴底输入栏，并通过 Navigation 组织多界面跳转。
+
+### 视图层
+
+视图层在 ViewModel 中保存界面需要的临时状态与长期状态，防止生命周期变动时数据丢失，同时将数据库与网络层抽象为数据流，提供稳定的 UI 数据源。
+
+## 五、核心功能实现
+
+### 一、获取机器人回复
+
+在内存、速度与性能方面，频繁调用 Retrofit `create()` 成本较高。本应用仅保留一个 API 服务实例，并通过对象声明暴露给全局使用。网络层统一设置 60s 超时，避免复杂视觉/文生图请求被默认 14s 超时终止。
+
 ```kotlin
-class UserPreferencesRepository(private val dataStore: DataStore<Preferences>) {
-    private companion object {
-        val IS_DARK_THEME = booleanPreferencesKey("is_dark_theme")
-        val FONT_SIZE = stringPreferencesKey("font_size")
-    }
-
-    val themeConfig: Flow<Boolean> = dataStore.data
-        .catch { emit(emptyPreferences()) }
-        .map { it[IS_DARK_THEME] ?: false }
-
-    val fontConfig: Flow<String> = dataStore.data
-        .catch { emit(emptyPreferences()) }
-        .map { it[FONT_SIZE] ?: "小" }
-
-    suspend fun saveUserPreference(value: Boolean) {
-        dataStore.edit { it[IS_DARK_THEME] = value }
-    }
-
-    suspend fun saveUserFontPreference(value: String) {
-        dataStore.edit { it[FONT_SIZE] = value }
-    }
-}
-```
-
-## 8. 网络层与模型接入（Retrofit/OkHttp + Doubao Ark）
-- 超时策略：读/连/写均设为 60s，兼顾视觉与文生图长耗时请求
-- Retrofit 单例：避免重复构建的性能浪费
-- 端点：
-  - 文本/视觉对话：`/api/v3/chat/completions`
-  - 文生图：`/api/v3/images/generations`
-
-### Retrofit 示例
-```kotlin
-private const val BASE_URL = "https://api.openai.com/v1/" // 示例，占位
+private const val BASE_URL = "https://api.openai.com/v1/" // 示例占位
 
 val client = OkHttpClient.Builder()
     .readTimeout(60, TimeUnit.SECONDS)
@@ -199,216 +121,67 @@ interface ChatApiService {
 object ChatApi { val retrofitService: ChatApiService by lazy { retrofit.create(ChatApiService::class.java) } }
 ```
 
-## 9. 视图模型与状态管理（MVVM + Flow/StateFlow）
-- ViewModel 收集 Repository 暴露的流，映射为 `UiState`，暴露 `StateFlow` 供 Compose 使用。
-- 统一入口方法：发送消息、请求视觉/文生图、更新配置、切换会话等。
-
-### StateFlow 示例
+ViewModel 请求与 UI 更新：
 ```kotlin
-val chatListState: StateFlow<ChatUiState> =
-    messageRepository.getMessagesStreamByUserId(userId)
-        .map { ChatUiState(it) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = ChatUiState()
-        )
+fun getAiReply(content: String) {
+    updateMessageUiState(content, true) // 记录用户输入
+    val requestBody = configUiState.toRequestBody(content)
+    val call = ChatApi.retrofitService.getReply(requestBody)
+    call.enqueue(object : Callback<ChatResponse> {
+        override fun onResponse(call: Call<ChatResponse>, response: Response<ChatResponse>) {
+            response.body()?.choices?.getOrNull(0)?.let { choice ->
+                viewModelScope.launch {
+                    val realTimeConfig = withContext(Dispatchers.IO) { configRepository.getConfigByUserId(userId) }
+                    if (realTimeConfig.id != 0) {
+                        configUiState = configUiState.copy(robotName = realTimeConfig.robotName)
+                    }
+                    updateMessageUiState(choice.text.trim(), false)
+                }
+            }
+        }
+        override fun onFailure(call: Call<ChatResponse>, t: Throwable) { t.printStackTrace() }
+    })
+}
 ```
 
-## 10. UI 层（Jetpack Compose）
-- 列表采用 `LazyColumn`，消息项组件 `MessageItem` 展示头像、昵称、时间与内容。
-- 输入组件 `UserInput` 提供文本输入、图片选择与发送按钮。
-- 顶部栏 `TopBarView` 提供标题、菜单与配置入口。
+### 二、聊天界面的构建
 
-### ChatScreen 示例
+总体架构为“聊天消息列表 + 贴底输入框”。列表采用 `LazyColumn`，输入区包含文本框与图片选择入口。
+
 ```kotlin
 @Composable
 fun ChatScreen(viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)) {
     val listState = viewModel.listState
-    Surface {
-        Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                ChatDisplay(viewModel, Modifier.height(510.dp), listState)
-                UserInput(viewModel, listState)
-            }
+    Surface { Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            ChatDisplay(viewModel, Modifier.height(510.dp), listState)
+            UserInput(viewModel, listState)
         }
-    }
+    }}
 }
 ```
 
-## 11. 核心功能实现与关键代码片段
-- 自动标题生成：基于用户首条问题与最近机器人回答生成简洁标题
-- 上下文打包：最近 N 条消息整理为模型上下文，控制长度与 token
-- 视觉/文生图输入类型选择：本地图片走 `input_image`，网络图片走 `image_url`
-- 图片展示：文生图 `b64_json` 解码为位图后在气泡中显示
-
-## 12. 导航与路由（Navigation）
-- 组成：`NavController`、`NavGraph`、`NavHost`
-- 路由：`login` → `home/{userId}`
-- 参数传递：登录成功后将 `userId` 放入路由参数，主页加载用户数据。
-
-### NavHost 示例
+消息渲染：
 ```kotlin
 @Composable
-fun ChatNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
-    NavHost(navController = navController, startDestination = "login") {
-        composable(route = "login") { LoginScreen(navController = navController) }
-        composable(route = "home/{userId}", arguments = listOf(navArgument("userId") { type = NavType.IntType })) {
-            MainScreen(navController = navController)
+fun ChatDisplay(viewModel: MainViewModel, modifier: Modifier = Modifier, listState: LazyListState) {
+    val chatUiState by viewModel.chatListState.collectAsState()
+    Surface(modifier) {
+        LazyColumn(Modifier.background(MaterialTheme.colors.background), state = listState) {
+            items(chatUiState.chatList) { item -> MessageItem(messageUiState = item.toMessageUiState()) }
         }
     }
 }
 ```
 
-## 13. 登录注册与安全策略
-- 注册：校验两次密码一致、校验账号是否存在、对密码进行不可逆加密（如 MD5）后入库。
-- 登录：校验账号密码，返回用户信息时屏蔽密码字段为 `******`。
-- 安全：避免在日志与 UI 中暴露密钥与敏感数据。
-
-## 14. 历史会话与摘要生成
-- 存储结构：`Conversation` + `Message` 多表关联（如需要）
-- 标题策略：优先用首条问题与最近回答合成的短标题；可手动重命名
-- 摘要生成：展示首条用户问题 + 最近机器人回答片段，帮助快速回忆上下文
-
-## 15. 图片理解与图片生成链路
-- 图片理解：
-  - 本地图片通过 ContentResolver 读取并编码为 Base64，以 `input_image` 形式提交
-  - 网络图片以 URL 直接提交为 `image_url`
-- 图片生成：
-  - 文生图请求到 `b64_json`，解码为位图并在消息气泡中展示
-  - 支持保存与分享
-
-## 16. 主题与字体偏好（DataStore）
-- 通过 `LoginViewModel` 获取主题与字体偏好数据流，`ChatRobotTheme` 中决定配色与字体套件。
-- 字体三档：小/中/大，对应 TypographySmall/Medium/Large。
-
-## 17. 错误处理与失败重试机制
-- 网络失败：标记对应消息为失败，展示红色感叹号；点击感叹号重试最近一次用户消息。
-- 超时控制：统一 60s 超时避免请求卡死。
-- UI 状态：失败与重试操作通过 ViewModel 修改 `UiState`，Compose 跟随变化。
-
-## 18. 构建与发布
-- Debug：`./gradlew.bat :app:assembleDebug`
-- Release：生成签名文件（`.jks`），在 `build.gradle` 配置签名，再执行 `:app:assembleRelease`
-- 产物位置：`app/build/outputs/apk/` 下分渠道构建产物
-- 版本号策略：遵循 `versionCode` + `versionName`，配合语义化发布
-
-## 19. 配置与密钥管理
-- 在根目录 `local.properties` 注入：
-  ```
-  DOUBAO_API_KEY=你的Ark密钥
-  ```
-- 不提交 `local.properties`；`.gitignore` 已忽略
-- BuildConfig 注入：在编译期将密钥注入 `BuildConfig` 使用，避免硬编码在源码中
-
-## 20. 测试（单元/仪器/UI）
-- 单元测试：对 Repository 与业务逻辑进行隔离测试，使用 Fake/Mock Dao 与网络层
-- 仪器测试：验证数据库与 DataStore 行为，确保迁移与数据流正确
-- UI 测试：Compose UI 测试，验证组件渲染与交互（点击重试、会话切换等）
-
-## 21. 性能优化
-- 避免频繁创建 Retrofit/OkHttp 客户端，统一单例
-- `LazyColumn` 优化：使用 `key` 保持项稳定，减少重组
-- 图片解码与展示：按需采样与缓存，避免主线程阻塞
-- Flow 背压与冷流：合理使用 `stateIn` 与 `SharingStarted`
-
-## 22. 安全与隐私
-- 密钥只在 `local.properties` 配置，不入库
-- 返回给 UI 的用户信息屏蔽敏感字段（密码）
-- 避免在日志打印敏感数据
-- 如果接入云端存储图片，需遵循隐私合规与用户授权
-
-## 23. 国际化与无障碍
-- 文案与格式可抽取到资源以便国际化
-- 无障碍（A11y）：为关键按钮与图片提供 contentDescription
-- 字体大小适配：全局字体偏好三档，配合系统字体与缩放
-
-## 24. 日志与监控
-- 基础日志：关键流程与失败信息记录到本地
-- 可选埋点：统计用户常用功能与错误分布（遵循隐私合规）
-- 远程日志：可选接入 Crash 与性能分析平台
-
-## 25. CI/CD 流程（可选）
-- 检查与构建：在 CI 中执行 `./gradlew :app:assembleDebug` 与基础测试
-- 代码规范：运行静态检查与格式化（如 ktlint/Detekt）
-- 签名与发布：Release 流程在本地或 CI 管理，避免泄露签名与密钥
-
-## 26. 代码结构索引
-- `app/src/main/java/com/yx/chatrobot/ChatApplication.kt`
-- `app/src/main/java/com/yx/chatrobot/MainViewModel.kt`
-- `app/src/main/java/com/yx/chatrobot/network/*`
-- `app/src/main/java/com/yx/chatrobot/data/*`
-- `app/src/main/java/com/yx/chatrobot/ui/*`
-- `app/src/main/res/*`
-
-## 27. 开发约定与代码风格
-- Kotlin 代码风格一致、命名清晰
-- 避免在 View 与 ViewModel 中混写网络/数据库逻辑，保持分层
-- 所有可长耗时操作放入协程，避免阻塞 UI
-- 不提交构建产物、IDE 配置与私密文件，遵循 `.gitignore`
-
-## 28. 分支与版本管理
-- 主分支：`main`，保持稳定与发布
-- 功能分支：`feature/*`，合并前通过测试与代码评审
-- 修复分支：`fix/*`，快速修复后合并并回归测试
-
-## 29. 贡献指南
-- 提交规范：语义化提交消息（feat/fix/docs/refactor/test/chore）
-- Pull Request：填写变更说明，关联 Issue，通过 CI 检查
-- 代码评审：关注可读性、测试覆盖与性能影响
-
-## 30. Roadmap（路线图）
-- 第一阶段：稳定文本/视觉/文生图链路，完善历史与配置
-- 第二阶段：图片生成的高级参数与样式控制
-- 第三阶段：离线缓存与更丰富的会话管理
-- 第四阶段：国际化与更多主题方案
-
-## 31. 常见问题与故障排查
-- 网络超时或失败
-  - 确认设备网络与代理设置
-  - 增大超时或重试策略
-- 401 未授权
-  - 检查 `DOUBAO_API_KEY` 有效与权限
-  - 确认对应模型能力已开通
-- 图片理解失败
-  - 本地图片编码与字段类型是否匹配
-  - 网络图片 URL 是否可公网访问
-- 构建失败
-  - 检查 Gradle/AGP/Kotlin/Compose 版本与 JDK 17 配置
-
-## 32. 变更记录建议
-- 每次发布版本在 `CHANGELOG` 记录新增、修复与变更
-- 对应 Issue 与 PR 进行链接，方便追踪来源与讨论
-
-## 33. 许可证
-- 本项目遵循开源许可证（见仓库内 `LICENSE`）。
-
----
-
-## 附录 A：数据结构示例
-```kotlin
-data class ChatResponse(
-    val id: String,
-    val created: Int,
-    val model: String,
-    val choices: List<Choice>,
-    val usage: Usage
-)
-
-data class Choice(val text: String)
-data class Usage(val prompt_tokens: Int, val completion_tokens: Int, val total_tokens: Int)
-```
-
-## 附录 B：消息渲染与交互示例
+单条消息：
 ```kotlin
 @Composable
 fun MessageItem(messageUiState: MessageUiState) {
     Row(Modifier.padding(8.dp)) {
-        Image(
-            painter = painterResource(if (messageUiState.isSelf) R.drawable.user_avatar else R.drawable.robot_avatar),
+        Image(painter = painterResource(if (messageUiState.isSelf) R.drawable.user_avatar else R.drawable.robot_avatar),
             contentDescription = null,
-            modifier = Modifier.size(40.dp).clip(CircleShape).border(1.5.dp, MaterialTheme.colors.secondaryVariant, CircleShape)
-        )
+            modifier = Modifier.size(40.dp).clip(CircleShape).border(1.5.dp, MaterialTheme.colors.secondaryVariant, CircleShape))
         Spacer(Modifier.width(8.dp))
         Column {
             Row {
@@ -425,41 +198,292 @@ fun MessageItem(messageUiState: MessageUiState) {
 }
 ```
 
-## 附录 C：构建脚本与常用命令
+### 三、页面间导航（Navigation）
+
+Navigation 组件由 `NavController`、`NavGraph`、`NavHost` 组成。应用包含登录页 `login` 与主界面 `home/{userId}` 两个主要路由。登录成功后将 `userId` 传入主界面，加载与该用户相关的数据。
+
+```kotlin
+@Composable
+fun ChatNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
+    NavHost(navController = navController, startDestination = "login") {
+        composable("login") { LoginScreen(navController = navController) }
+        composable("home/{userId}", arguments = listOf(navArgument("userId") { type = NavType.IntType })) {
+            MainScreen(navController = navController)
+        }
+    }
+}
+```
+
+### 四、登录与注册
+
+注册：校验两次密码一致与账号是否已存在，将密码进行不可逆加密（如 MD5）后存入数据库；注册成功后可直接登录。登录：校验账号与密码，返回用户信息时屏蔽敏感字段（如将 `password` 显示为 `******`）。
+
+```kotlin
+override suspend fun getUserByAccount(account: String, password: String): User {
+    val res = userDao.getUserByAccount(account, password)
+    return (res ?: User()).copy(password = "******")
+}
+```
+
+### 五、持久层实现（详解）
+
+实体定义：
+```kotlin
+@Entity(tableName = "message")
+data class Message(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val time: Long,
+    val content: String,
+    @ColumnInfo(name = "user_id") val userId: Int,
+    val isSelf: Boolean
+)
+```
+
+DAO 示例：
+```kotlin
+@Dao
+interface MessageDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(message: Message)
+
+    @Query("SELECT * from message WHERE id = :id")
+    fun getMessage(id: Int): Flow<Message>
+
+    @Query("Select * from  message where user_id = :userId order by time asc")
+    fun getAllMessagesByUserId(userId: Int): Flow<List<Message>>
+}
+```
+
+仓库封装：
+```kotlin
+class OfflineMessageRepository(private val messageDao: MessageDao) : MessageRepository {
+    override fun getMessagesStreamByUserId(userId: Int): Flow<List<Message>> = messageDao.getAllMessagesByUserId(userId)
+    override suspend fun insertMessage(message: Message) = messageDao.insert(message)
+}
+```
+
+数据库实例：
+```kotlin
+@Database(entities = [Message::class, User::class, Config::class], version = 7, exportSchema = false)
+abstract class ChatDb : RoomDatabase() {
+    abstract val messageDao: MessageDao
+    abstract val userDao: UserDao
+    abstract val configDao: ConfigDao
+}
+```
+
+### 六、DataStore（主题与字体偏好）
+
+```kotlin
+class UserPreferencesRepository(private val dataStore: DataStore<Preferences>) {
+    private companion object {
+        val IS_DARK_THEME = booleanPreferencesKey("is_dark_theme")
+        val FONT_SIZE = stringPreferencesKey("font_size")
+    }
+
+    val themeConfig: Flow<Boolean> = dataStore.data.map { it[IS_DARK_THEME] ?: false }
+    val fontConfig: Flow<String> = dataStore.data.map { it[FONT_SIZE] ?: "小" }
+
+    suspend fun saveUserPreference(value: Boolean) { dataStore.edit { it[IS_DARK_THEME] = value } }
+    suspend fun saveUserFontPreference(value: String) { dataStore.edit { it[FONT_SIZE] = value } }
+}
+```
+
+## 六、数据流（Flow）实现
+
+在持久层中返回 `Flow`，Room 会在后台线程运行查询并推送数据变化；ViewModel 使用 `stateIn` 将其转为 `StateFlow`，Compose 使用 `collectAsState()` 渲染。
+
+```kotlin
+val chatListState: StateFlow<ChatUiState> =
+    messageRepository.getMessagesStreamByUserId(userId)
+        .map { ChatUiState(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
+```
+
+## 七、主题的切换
+
+本应用支持手动切换深色模式与调整全局字体大小，且配置持久化。`ChatRobotTheme` 从 `LoginViewModel` 获取偏好流并实时应用。
+
+```kotlin
+@Composable
+fun ChatRobotTheme(loginViewModel: LoginViewModel = viewModel(factory = AppViewModelProvider.Factory), content: @Composable () -> Unit) {
+    val themeState = loginViewModel.themeState.collectAsState().value
+    val fontState = loginViewModel.fontState.collectAsState().value
+    val colors = if (themeState) DarkColorPalette else LightColorPalette
+    val fontTypography = when (fontState) { "小" -> TypographySmall; "中" -> TypographyMedium; "大" -> TypographyLarge; else -> TypographySmall }
+    MaterialTheme(colors = colors, typography = fontTypography, shapes = Shapes, content = content)
+}
+```
+
+## 八、思考双圈动画（你的改动）
+
+为了更直观地体现模型处理过程，你新增了“思考时双圈动画指示”。实现思路：
+- 在对话请求发出后显示两个独立的圆形指示器。
+- 第一个圈表示“思考/推理中”，第二个圈表示“输出/生成中”。
+- 当返回首包数据后，关闭第一个圈，仅保留第二个圈，待完整响应后全部关闭。
+
+可参考 Compose 动画：
+```kotlin
+@Composable
+fun ThinkingIndicators(showReasoning: Boolean, showGenerating: Boolean) {
+    Row(Modifier.padding(8.dp)) {
+        if (showReasoning) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        if (showGenerating) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colors.secondary)
+    }
+}
+```
+
+UI 放置策略：位于列表尾部的 Typing 行或顶部栏下方的状态区，避免遮挡消息内容。与失败重试不冲突，状态切换通过 ViewModel 控制。
+
+## 九、数据存储功能（你的改动 + 现有设计）
+
+- 消息与会话：Room 存储，每条消息记录时间戳、用户标识与是否为用户/机器人。
+- 会话摘要与标题：在会话表或配置表里维护，生成规则为“首条用户问题 + 最近机器人回答”，标题限制 ≤12 字。
+- 用户配置：DataStore 持久化主题与字体大小，应用启动或切换时立即生效。
+- 登录态与账号：Room 存储用户信息（账号/加密密码/昵称/说明），登录后按 `userId` 过滤消息与会话。
+
+## 十、错误处理与失败重试
+
+- 显示失败：在消息右侧显示红色感叹号。
+- 点击重试：直接重试最近一次用户消息，并保持上下文一致。
+- 超时与网络失败：统一 60s 超时；必要时在 UI 提示检查网络/代理设置。
+
+## 十一、构建与发布
+
+- Debug 构建：`./gradlew.bat :app:assembleDebug`
+- Release 构建：准备签名 `.jks` 并在 `build.gradle` 配置后执行 `:app:assembleRelease`
+- 产物位置：`app/build/outputs/apk/`
+- 版本号策略：`versionCode` + `versionName`，配合语义化发布
+
+## 十二、配置
+
+在项目根目录 `local.properties` 增加：
+```
+DOUBAO_API_KEY=你的Ark密钥
+```
+密钥不入库；`local.properties` 已在 `.gitignore` 中忽略。
+
+## 十三、模型与能力链路（Doubao Ark）
+
+- 文本/问答：`doubao-1-5-thinking-pro-250415`
+- 视觉对话：`doubao-seed-1-6-vision-250815`（支持 `image_url` 与 `input_image`）
+- 文生图：`doubao-seedream-4-0-250828`（返回 `b64_json`）
+- 可扩展：添加你的视觉/文本 `ep-...` 接入点至模型列表并使用
+
+## 十四、使用指南
+
+- 文本对话：在首页输入问题并发送；每次请求自动携带最近 10 条上下文
+- 图片理解：上传图片后输入提示（如“图片主要讲了什么？”）
+  - 本地图片自动转 Base64，以 `input_image` 提交
+  - 网络图片 URL 以 `image_url` 提交
+- 图片生成：输入“帮我生成一张……图片”，返回的 `b64_json` 在气泡内直接显示
+- 历史会话：在历史卡片查看标题/摘要，支持重命名与删除；点击切换当前会话
+- 模型选择：在配置页横向卡片切换文本/视觉/文生图或你的 `ep-...`
+- 双圈思考：请求发出后出现双圈指示，首包到达后仅保留生成圈，响应完成后关闭
+
+## 十五、关键改动（相对于初始版本）
+
+- 升级构建栈：Gradle/AGP/Kotlin/Compose 统一升级并切至 JVM 17
+- 移除硬编码密钥，改为 `local.properties` 注入 `BuildConfig`
+- 文本对话统一 Doubao，加入上下文打包与标题自动生成
+- 视觉理解支持 `image_url` 与 `input_image`，上传本地图片自动编码
+- 文生图改为 `b64_json` 展示，避免 URL 访问问题
+- 登录与顶部栏统一随主题切换；输入框圆角化与贴底
+- 失败重试改为失败消息 + 感叹号点击重试；保留列表尾 Typing 指示
+- 新增双圈思考动画，区分推理与生成两个阶段
+
+## 十六、目录索引
+
+- `MainViewModel.kt`：能力调度、上下文与历史管理
+- `network/ChatApiService.kt`：Doubao Ark 接口定义（文本/视觉/文生图）
+- `domain/*`：请求/响应数据结构（`RequestBody`、`VisionRequest`、`ImageGenRequest` 等）
+- `data/*`：实体、DAO、仓库、数据库（含会话与消息联动）
+- `ui/*`：聊天/历史/配置/登录等界面；顶部与主题设置
+- `ui/theme/Theme.kt`：浅灰主题与暗色/浅色切换
+
+## 十七、常见问题（FAQ）
+
+- 401 未授权：检查 `DOUBAO_API_KEY` 是否有效并开通对应能力；视觉模型输入类型是否匹配
+- 视觉仅 `image_url`：需将本地图片上传到可公网访问的存储（如 TOS），再传 `image_url`
+- Gradle/同步提示：确认 `gradle-wrapper.properties` 为 8.9，IDE Gradle JDK 为 17
+- 思考双圈不显示：检查 ViewModel 的状态切换逻辑与 Compose 条件渲染
+- 登录失败：检查账号是否存在与密码加密逻辑；打印日志便于定位
+
+## 十八、扩展与优化建议
+
+- 上下文压缩：对长消息进行摘要或截断，避免上下文过长影响延迟与费用
+- 图片处理：对大图采用采样与压缩，减少网络负载与解码开销
+- Flow 背压：使用 `stateIn` 与 `SharingStarted` 控制订阅与资源占用
+- UI 性能：使用 `key` 保持列表项稳定，拆分 Composable 减少重组
+- 错误重试：可引入指数退避与失败分类提示
+
+## 十九、日志与监控
+
+- 本地日志：关键流程与失败信息记录到日志，便于调试与定位
+- 崩溃分析：可选接入 Crashlytics 或其他平台，遵循隐私合规
+- 埋点与统计：记录常用功能与错误分布（需用户授权与隐私声明）
+
+## 二十、CI/CD 与版本管理
+
+- CI 检查：在 CI 中执行 `./gradlew :app:assembleDebug` 与基础测试
+- 代码规范：可选 ktlint/Detekt 进行静态检查
+- 版本策略：语义化提交与变更记录，避免不可追溯的发布
+
+## 二十一、许可协议
+
+- 本项目依据 MIT License 开源（见仓库根目录 `LICENSE`）
+
+---
+
+### 附录 A：更多代码片段与流程示例
+
+消息写入流程：
+```kotlin
+viewModelScope.launch {
+    val msg = Message(name = "用户", time = System.currentTimeMillis(), content = userInput, userId = userId, isSelf = true)
+    messageRepository.insertMessage(msg)
+}
+```
+
+上下文打包：
+```kotlin
+fun List<Message>.packContext(limit: Int = 10): List<Message> = takeLast(limit)
+```
+
+图片 Base64 处理提示：
+- 大图片建议压缩或采样后编码，避免超大请求体影响时延与成功率
+- 避免在主线程执行编码与磁盘/网络 IO
+
+双圈动画状态流：
+```kotlin
+data class ThinkingState(val reasoning: Boolean = false, val generating: Boolean = false)
+val thinkingFlow: MutableStateFlow<ThinkingState> = MutableStateFlow(ThinkingState())
+```
+
+登录校验示例：
+```kotlin
+suspend fun login(account: String, password: String): Boolean {
+    val enc = encode(password)
+    val user = userRepository.getUserByAccount(account, enc)
+    return user.id != 0
+}
+```
+
+---
+
+### 附录 B：构建命令与发布清单
+
 - 构建 Debug：`./gradlew.bat :app:assembleDebug`
 - 构建 Release：`./gradlew.bat :app:assembleRelease`
 - 清理构建：`./gradlew.bat clean`
-- 同步依赖：Android Studio → Sync Project with Gradle Files
 
-## 附录 D：密钥注入示例
-- 在 `build.gradle` 或构建配置中读取 `local.properties` 并注入 `BuildConfig`（示例因项目而异）：
-```kotlin
-// 示例：在 Gradle 中读取 local.properties 并注入到 BuildConfig
-// 请根据实际项目的 build.gradle 进行调整
-```
+---
 
-## 附录 E：图片 Base64 处理提示
-- 大图片建议压缩或采样后编码，避免超大请求体影响时延与成功率。
-- 避免在主线程执行编码与磁盘/网络 IO。
+### 附录 C：术语表
 
-## 附录 F：错误与重试策略建议
-- 可增加指数退避重试或对关键失败进行提示与日志。
-- 在 UI 保持非阻断体验，避免 Modal 阻塞对话流程。
-
-## 附录 G：样式与主题建议
-- 统一浅灰色系，减少视觉负担，适配暗色模式。
-- 字体三档与 Breakpoint 匹配，保证不同设备上的可读性。
-
-## 附录 H：版本与依赖管理建议
-- 固定依赖版本，避免隐式升级带来的不兼容。
-- 使用 Gradle Versions Plugin 定期检查可升级项（可选）。
-
-## 附录 I：发布与签名管理建议
-- 签名文件与密钥管理在本地或安全秘钥库，切勿入库。
-- Release 构建需验证 Proguard/R8 混淆规则与崩溃栈可读性。
-
-## 附录 J：未来扩展点
-- 多账户与多模型配置集管理
-- 图片生成的风格与参数预设
-- 会话导出与导入（JSON/Markdown）
-- 云端同步与跨设备共享（需权限与隐私合规）
+- 文生图：文本生成图片
+- 视觉理解：对图片进行内容解释或提取信息
+- 上下文：多轮对话中用于保持连续性的历史消息片段
+- Ark：Doubao Ark 模型与接口服务
