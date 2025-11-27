@@ -45,8 +45,6 @@ A --> C(DataStore)
 
 #### Room
 
-![数据库架构示意](https://cdn.jdysya.top/lsky/2023/02/04/1/a419f54c8d86a674.png)
-
 实体（可按需增减）：
 1. `Config`（配置表）
 2. `Message`（消息表）
@@ -64,8 +62,6 @@ DAO（数据访问对象）：
 在不需要存储关系型数据的情况下，DataStore 适合存储简单键值对，开销较低。本应用使用 Preferences DataStore 存储主题与字体大小偏好，并以 Flow 方式获取，使 UI 能够快速响应配置变化。
 
 ### 网络层
-
-![网络层示意](https://cdn.jdysya.top/lsky/2023/02/03/1/604682b8e696e908.png)
 
 网络层使用 Retrofit 对接口进行访问，OkHttp 管理连接与超时，并通过 Gson 将 JSON 数据转为预定义对象。考虑到视觉与文生图请求可能耗时较长，读/连/写超时统一设置为 60s。
 
@@ -94,32 +90,7 @@ data class ChatResponse(
 
 在内存、速度与性能方面，频繁调用 Retrofit `create()` 成本较高。本应用仅保留一个 API 服务实例，并通过对象声明暴露给全局使用。网络层统一设置 60s 超时，避免复杂视觉/文生图请求被默认 14s 超时终止。
 
-```kotlin
-private const val BASE_URL = "https://api.openai.com/v1/" // 示例占位
-
-val client = OkHttpClient.Builder()
-    .readTimeout(60, TimeUnit.SECONDS)
-    .connectTimeout(60, TimeUnit.SECONDS)
-    .writeTimeout(60, TimeUnit.SECONDS)
-    .build()
-
-private val retrofit = Retrofit.Builder()
-    .addConverterFactory(GsonConverterFactory.create())
-    .baseUrl(BASE_URL)
-    .client(client)
-    .build()
-
-interface ChatApiService {
-    @Headers(
-        "Content-Type:application/json",
-        "Authorization:Bearer YOUR_KEY"
-    )
-    @POST("completions")
-    fun getReply(@Body requestData: RequestBody): Call<ChatResponse>
-}
-
-object ChatApi { val retrofitService: ChatApiService by lazy { retrofit.create(ChatApiService::class.java) } }
-```
+（此处省略具体第三方示意图与外部服务示例代码，网络层实现以本项目实际接口与配置为准）
 
 ViewModel 请求与 UI 更新：
 ```kotlin
