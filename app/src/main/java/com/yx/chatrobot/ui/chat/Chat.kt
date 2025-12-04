@@ -484,19 +484,13 @@ fun MessageItem(messageUiState: MessageUiState, viewModel: MainViewModel? = null
 }
 @Composable
 fun TypingIndicator() {
-    val transition = rememberInfiniteTransition()
-    val s1 = transition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(animation = tween(600, easing = LinearEasing), repeatMode = RepeatMode.Reverse)
-    )
-    val s2 = transition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(animation = tween(600, easing = LinearEasing), repeatMode = RepeatMode.Reverse)
-    )
+    val t = rememberInfiniteTransition()
+    val a = t.animateFloat(initialValue = 0.6f, targetValue = 1.0f, animationSpec = infiniteRepeatable(animation = tween(500, easing = LinearEasing), repeatMode = RepeatMode.Reverse))
+    val b = t.animateFloat(initialValue = 0.6f, targetValue = 1.0f, animationSpec = infiniteRepeatable(animation = tween(650, easing = LinearEasing), repeatMode = RepeatMode.Reverse))
+    val c = t.animateFloat(initialValue = 0.6f, targetValue = 1.0f, animationSpec = infiniteRepeatable(animation = tween(800, easing = LinearEasing), repeatMode = RepeatMode.Reverse))
     Row(modifier = Modifier.height(24.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(modifier = Modifier.size((12 * s1.value).dp).clip(CircleShape).background(MaterialTheme.colors.primary))
-        Box(modifier = Modifier.size((12 * s2.value).dp).clip(CircleShape).background(MaterialTheme.colors.secondary))
+        Box(modifier = Modifier.size((10 * a.value).dp).clip(CircleShape).background(MaterialTheme.colors.primary))
+        Box(modifier = Modifier.size((10 * b.value).dp).clip(CircleShape).background(MaterialTheme.colors.secondary))
+        Box(modifier = Modifier.size((10 * c.value).dp).clip(CircleShape).background(MaterialTheme.colors.onSurface))
     }
 }

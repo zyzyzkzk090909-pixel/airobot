@@ -9,7 +9,7 @@ import com.yx.chatrobot.domain.RequestBody
 data class ConfigUiState(
     val robotName: String = "AI",
     var model: String = "doubao-1-5-thinking-pro-250415",
-    val maxTokens: Int = 60,
+    val maxTokens: Int = 256,
     val temperature: Double = 0.5,
     val topP: Double = 1.0,
     val frequency_penalty: Double = 0.0,

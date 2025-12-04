@@ -93,7 +93,19 @@ class MainViewModel(
             generateImage(content)
             return
         }
-        // 不再插入占位消息，改为列表尾部统一显示 Typing 指示
+        var assistantMsgId: Int = 0
+        runBlocking {
+            val sid = requireSessionId()
+            val placeholder = MessageUiState(
+                name = configUiState.robotName,
+                time = Date().time / 1000,
+                content = "",
+                isSelf = false,
+                status = "loading",
+                imageUri = null
+            )
+            assistantMsgId = messageRepository.insertMessage(placeholder.toMessage(userState.value.id).copy(sessionId = sid)).toInt()
+        }
 
         val lastImage = chatListState.value.chatList.lastOrNull { it.imageUri != null }
         val imageUri = lastImage?.imageUri
@@ -182,30 +194,36 @@ class MainViewModel(
                 ) {
                     if (!response.isSuccessful) {
                         val msg = response.errorBody()?.string() ?: "请求失败"
-                        updateMessageUiState(msg, false, status = "failed")
+                        viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, msg, "failed") }
                         isLoading = false
                         return
                     }
                     response.body()?.choices?.get(0)?.let {
+                        val reply = (it.message?.content ?: (it.text ?: "")).trim()
                         viewModelScope.launch {
-                            val realTimeConfig =
-                                async { configRepository.getConfigByUserId(userId) }.await()
+                            val realTimeConfig = async { configRepository.getConfigByUserId(userId) }.await()
                             if (realTimeConfig.id != 0) {
                                 configUiState = configUiState.copy(robotName = realTimeConfig.robotName)
                             }
-                            val reply = it.message?.content ?: (it.text ?: "")
-                            updateMessageUiState(reply.trim(), false)
+                            val step = maxOf(5, reply.length / 40)
+                            var i = 0
+                            while (i < reply.length) {
+                                val part = reply.substring(0, i.coerceAtMost(reply.length))
+                                messageRepository.updateContentAndStatus(assistantMsgId, part, "loading")
+                                i += step
+                                delay(20)
+                            }
+                            messageRepository.updateContentAndStatus(assistantMsgId, reply, "sent")
                             generateConversationTitle(currentSessionIdFlow.value)
                             isLoading = false
                         }
-
                     }
                 }
 
                 override fun onFailure(call: Call<ChatResponse>, t: Throwable) {
                     t.printStackTrace()
                     Log.e("MYTEST", "获取信息失败: ${t.message}")
-                    updateMessageUiState("请求失败，请检查网络或API密钥配置", false, status = "failed")
+                    viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, "请求失败，请检查网络或API密钥配置", "failed") }
                     isLoading = false
                 }
             })
