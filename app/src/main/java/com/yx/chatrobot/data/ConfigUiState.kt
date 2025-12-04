@@ -14,7 +14,8 @@ data class ConfigUiState(
     val topP: Double = 1.0,
     val frequency_penalty: Double = 0.0,
     val presence_penalty: Double = 0.6,
-    val systemPrompt: String = "你是人工智能助手."
+    val systemPrompt: String = "你是人工智能助手.",
+    val backendUrl: String = ""
 )
 
 
@@ -26,7 +27,8 @@ fun Config.toConfigUiState() = ConfigUiState(
     topP = topP,
     presence_penalty = presence_penalty,
     frequency_penalty = frequency_penalty,
-    systemPrompt = systemPrompt
+    systemPrompt = systemPrompt,
+    backendUrl = backendUrl
 )
 
 fun ConfigUiState.toConfig(id: Int = 0, userId: Int) = Config(
@@ -39,7 +41,8 @@ fun ConfigUiState.toConfig(id: Int = 0, userId: Int) = Config(
     userId = userId,
     frequency_penalty = frequency_penalty,
     presence_penalty = presence_penalty,
-    systemPrompt = systemPrompt
+    systemPrompt = systemPrompt,
+    backendUrl = backendUrl
 )
 
 fun ConfigUiState.toRequestBody(prompt: String) = RequestBody(

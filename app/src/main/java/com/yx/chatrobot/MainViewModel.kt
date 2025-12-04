@@ -438,6 +438,9 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
         }
         val conf = configRepository.getConfigByUserId(userId)
         configUiState = conf.toConfigUiState()
+        if (configUiState.backendUrl.isNotBlank()) {
+            backendBaseUrl = configUiState.backendUrl
+        }
     }
 
     fun startNewSession(title: String = "新对话") {
@@ -477,7 +480,7 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
         }
         return currentSessionIdFlow.value
     }
-    val backendBaseUrl = com.yx.chatrobot.BuildConfig.BACKEND_BASE_URL
+    var backendBaseUrl = com.yx.chatrobot.BuildConfig.BACKEND_BASE_URL
  
     fun getVisionReply(imageUri: String, prompt: String, resolver: android.content.ContentResolver) {
         updateMessageUiState(prompt, true)

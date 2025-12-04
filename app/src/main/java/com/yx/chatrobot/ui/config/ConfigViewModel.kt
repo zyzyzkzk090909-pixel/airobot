@@ -74,6 +74,7 @@ class ConfigViewModel(
             "robotName" -> currentInputValue = configUiState.robotName
             "userName" -> currentInputValue = userUiState.name
             "description" -> currentInputValue = userUiState.description
+            "backendUrl" -> currentInputValue = configUiState.backendUrl
         }
         // 根据当前的选项，匹配对应列表中的索引值
         configItem[name]?.forEachIndexed { index, pair ->
@@ -99,6 +100,7 @@ class ConfigViewModel(
                 "robotName" -> configUiState = configUiState.copy(robotName = value)
                 "userName" -> userUiState = userUiState.copy(name = value)
                 "description" -> userUiState = userUiState.copy(description = value)
+                "backendUrl" -> configUiState = configUiState.copy(backendUrl = value)
 //                "stop" -> configUiState = configUiState.copy(stop = value)
             }
         } catch (e: NumberFormatException) {

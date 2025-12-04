@@ -24,5 +24,7 @@ data class Config(
     @ColumnInfo(name = "user_id")
     val userId: Int = 1314,
     @ColumnInfo(name = "system_prompt")
-    val systemPrompt: String = "你是人工智能助手."
+    val systemPrompt: String = "你是人工智能助手.",
+    @ColumnInfo(name = "backend_url")
+    val backendUrl: String = ""
 )

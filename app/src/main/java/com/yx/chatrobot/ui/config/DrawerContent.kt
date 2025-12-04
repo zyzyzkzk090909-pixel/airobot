@@ -320,6 +320,41 @@ fun InterfaceConfig(
         text = {
             Text(
                 style = MaterialTheme.typography.body1,
+                text = "后端地址"
+            )
+        },
+        secondaryText = {
+            Text(
+                style = MaterialTheme.typography.body2,
+                text = "用于消息与图片上传的后端 API 基地址"
+            )
+        },
+        trailing = {
+            Button(
+                onClick = {
+                    configViewModel.updateState(false, "backendUrl")
+                    openDrawer()
+                },
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Row {
+                    Text(
+                        style = MaterialTheme.typography.body2,
+                        text = if (configUiState.backendUrl.isNotEmpty()) configUiState.backendUrl else "未设置（使用默认）"
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        modifier = Modifier.padding(end = 4.dp),
+                        contentDescription = null
+                    )
+                }
+            }
+        }
+    )
+    ListItem(
+        text = {
+            Text(
+                style = MaterialTheme.typography.body1,
                 text = "temperature"
             )
         },
