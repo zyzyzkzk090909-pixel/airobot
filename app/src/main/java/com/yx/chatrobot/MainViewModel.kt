@@ -42,6 +42,8 @@ class MainViewModel(
     var isLoading by mutableStateOf(false)
 
     private val currentSessionIdFlow = MutableStateFlow(0)
+    private data class SyncTask(val url: String, val payload: String, var attempts: Int = 0)
+    private val syncQueue = MutableSharedFlow<SyncTask>(extraBufferCapacity = 64)
 
     init {
         viewModelScope.launch {
@@ -51,6 +53,7 @@ class MainViewModel(
                 configUiState = configUiState.copy(model = "doubao-1-5-thinking-pro-250415")
             }
         }
+        viewModelScope.launch { startSyncWorker() }
     }
 
     val userState: StateFlow<UserUiState> =
@@ -178,20 +181,81 @@ class MainViewModel(
             if (it.isSelf) com.yx.chatrobot.domain.ChatMessage(role = "user", content = it.content)
             else com.yx.chatrobot.domain.ChatMessage(role = "assistant", content = it.content)
         }
-        val requestBody = configUiState.toRequestBody(content).copy(
-            prompt = "",
-            messages = listOf(com.yx.chatrobot.domain.ChatMessage(role = "system", content = configUiState.systemPrompt)) + lastN + listOf(
-                com.yx.chatrobot.domain.ChatMessage(role = "user", content = content)
-            )
-        )
         val auth = "Bearer ${com.yx.chatrobot.BuildConfig.DOUBAO_API_KEY}"
-        restaurantsCall = DoubaoApi.retrofitService.chatCompletions(auth, requestBody)
-        restaurantsCall.enqueue(
-            object : Callback<ChatResponse> {
-                override fun onResponse(
-                    call: Call<ChatResponse>,
-                    response: Response<ChatResponse>
-                ) {
+        val sys = org.json.JSONObject().put("role","system").put("content",configUiState.systemPrompt)
+        val arr = org.json.JSONArray()
+        arr.put(sys)
+        lastN.forEach { arr.put(org.json.JSONObject().put("role", it.role).put("content", it.content)) }
+        arr.put(org.json.JSONObject().put("role","user").put("content",content))
+        val body = org.json.JSONObject()
+            .put("model", configUiState.model)
+            .put("messages", arr)
+            .put("max_tokens", configUiState.maxTokens)
+            .put("temperature", configUiState.temperature)
+            .put("top_p", configUiState.topP)
+            .put("frequency_penalty", configUiState.frequency_penalty)
+            .put("presence_penalty", configUiState.presence_penalty)
+            .put("stream", true)
+        try {
+            val req = Request.Builder()
+                .url("https://ark.cn-beijing.volces.com/api/v3/chat/completions")
+                .addHeader("Authorization", auth)
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                    viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, "请求失败，请检查网络或API密钥配置", "failed") }
+                    isLoading = false
+                }
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    if (!response.isSuccessful) {
+                        val msg = response.body?.string() ?: "请求失败"
+                        viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, msg, "failed") }
+                        isLoading = false
+                        response.close()
+                        return
+                    }
+                    val source = response.body?.source()
+                    var acc = StringBuilder()
+                    try {
+                        while (true) {
+                            val line = source?.readUtf8Line() ?: break
+                            if (line.startsWith("data:")) {
+                                val data = line.removePrefix("data:").trim()
+                                if (data == "[DONE]") break
+                                try {
+                                    val json = org.json.JSONObject(data)
+                                    val choices = json.optJSONArray("choices")
+                                    val first = choices?.optJSONObject(0)
+                                    val delta = first?.optJSONObject("delta")
+                                    val txt = delta?.optString("content") ?: first?.optJSONObject("message")?.optString("content") ?: first?.optString("text") ?: ""
+                                    if (txt.isNotEmpty()) {
+                                        acc.append(txt)
+                                        viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, acc.toString(), "loading") }
+                                    }
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    } catch (_: Exception) {}
+                    viewModelScope.launch {
+                        messageRepository.updateContentAndStatus(assistantMsgId, acc.toString().trim(), "sent")
+                        generateConversationTitle(currentSessionIdFlow.value)
+                        isLoading = false
+                    }
+                    response.close()
+                }
+            })
+        } catch (_: Exception) {
+            val requestBody = configUiState.toRequestBody(content).copy(
+                prompt = "",
+                messages = listOf(com.yx.chatrobot.domain.ChatMessage(role = "system", content = configUiState.systemPrompt)) + lastN + listOf(
+                    com.yx.chatrobot.domain.ChatMessage(role = "user", content = content)
+                )
+            )
+            restaurantsCall = DoubaoApi.retrofitService.chatCompletions(auth, requestBody)
+            restaurantsCall.enqueue(object: Callback<ChatResponse> {
+                override fun onResponse(call: Call<ChatResponse>, response: Response<ChatResponse>) {
                     if (!response.isSuccessful) {
                         val msg = response.errorBody()?.string() ?: "请求失败"
                         viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, msg, "failed") }
@@ -201,32 +265,18 @@ class MainViewModel(
                     response.body()?.choices?.get(0)?.let {
                         val reply = (it.message?.content ?: (it.text ?: "")).trim()
                         viewModelScope.launch {
-                            val realTimeConfig = async { configRepository.getConfigByUserId(userId) }.await()
-                            if (realTimeConfig.id != 0) {
-                                configUiState = configUiState.copy(robotName = realTimeConfig.robotName)
-                            }
-                            val step = maxOf(5, reply.length / 40)
-                            var i = 0
-                            while (i < reply.length) {
-                                val part = reply.substring(0, i.coerceAtMost(reply.length))
-                                messageRepository.updateContentAndStatus(assistantMsgId, part, "loading")
-                                i += step
-                                delay(20)
-                            }
                             messageRepository.updateContentAndStatus(assistantMsgId, reply, "sent")
                             generateConversationTitle(currentSessionIdFlow.value)
                             isLoading = false
                         }
                     }
                 }
-
                 override fun onFailure(call: Call<ChatResponse>, t: Throwable) {
-                    t.printStackTrace()
-                    Log.e("MYTEST", "获取信息失败: ${t.message}")
                     viewModelScope.launch { messageRepository.updateContentAndStatus(assistantMsgId, "请求失败，请检查网络或API密钥配置", "failed") }
                     isLoading = false
                 }
             })
+        }
     }
 
     suspend fun getLastMessageSnippet(sessionId: Int): String {
@@ -351,22 +401,15 @@ class MainViewModel(
                     val sid = requireSessionId()
                     messageRepository.insertMessage(msg.toMessage(userState.value.id).copy(sessionId = sid))
                     val payload = org.json.JSONObject()
-                    payload.put("name", msg.name)
-                    payload.put("time", msg.time)
-                    payload.put("content", msg.content)
-                    payload.put("user_id", userState.value.id)
-                    payload.put("is_self", false)
-                    payload.put("session_id", sid)
-                    payload.put("image_uri", msg.imageUri)
-                    payload.put("status", msg.status)
-                    try {
-                        val url = backendBaseUrl + "/messages"
-                        val req = Request.Builder().url(url).post(payload.toString().toRequestBody("application/json".toMediaType())).build()
-                        com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
-                            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
-                            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
-                        })
-                    } catch (_: Exception) {}
+                        .put("name", msg.name)
+                        .put("time", msg.time)
+                        .put("content", msg.content)
+                        .put("user_id", userState.value.id)
+                        .put("is_self", false)
+                        .put("session_id", sid)
+                        .put("image_uri", msg.imageUri)
+                        .put("status", msg.status)
+                    enqueueSync(backendBaseUrl + "/messages", payload.toString())
                 }
                 isLoading = false
             }
@@ -404,14 +447,7 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
         payload.put("session_id", sid)
         payload.put("image_uri", imageUri)
         payload.put("status", status)
-        try {
-            val url = backendBaseUrl + "/messages"
-            val req = Request.Builder().url(url).post(payload.toString().toRequestBody("application/json".toMediaType())).build()
-            com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
-                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
-                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
-            })
-        } catch (_: Exception) {}
+        enqueueSync(backendBaseUrl + "/messages", payload.toString())
         delay(100)
         listState.scrollToItem(chatListState.value.chatList.size - 1)
     }
@@ -474,13 +510,7 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
                     put("user_id", userId)
                     put("title", title)
                 }
-                val req = Request.Builder().url(backendBaseUrl + "/conversations").post(
-                    payload.toString().toRequestBody("application/json".toMediaType())
-                ).build()
-                com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
-                    override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
-                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
-                })
+                enqueueSync(backendBaseUrl + "/conversations", payload.toString())
             } catch (_: Exception) {}
             currentSessionIdFlow.value = sid
         }
@@ -577,5 +607,27 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
                 isLoading = false
             }
         })
+    }
+
+    private fun enqueueSync(url: String, payload: String) {
+        syncQueue.tryEmit(SyncTask(url, payload))
+    }
+
+    private suspend fun startSyncWorker() {
+        syncQueue.collect { task ->
+            var delayMs = 500L
+            var ok = false
+            repeat(5) {
+                try {
+                    val req = Request.Builder().url(task.url).post(task.payload.toRequestBody("application/json".toMediaType())).build()
+                    val resp = com.yx.chatrobot.network.client.newCall(req).execute()
+                    ok = resp.isSuccessful
+                    resp.close()
+                    if (ok) return@collect
+                } catch (_: Exception) {}
+                delay(delayMs)
+                delayMs = kotlin.math.min(delayMs * 2, 8000L)
+            }
+        }
     }
 }
