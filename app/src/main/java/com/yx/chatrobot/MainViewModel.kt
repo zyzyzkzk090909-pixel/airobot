@@ -16,6 +16,9 @@ import com.yx.chatrobot.domain.ChatResponse
 import com.yx.chatrobot.domain.RequestBody
 import com.yx.chatrobot.network.DoubaoApi
 import kotlinx.coroutines.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Request
 import kotlinx.coroutines.flow.*
 import retrofit2.Call
 import retrofit2.Callback
@@ -301,21 +304,51 @@ class MainViewModel(
                 val b64 = data?.b64_json
                 val url = data?.url
                 val content = "[生成图片]"
+                var finalUri: String? = null
+                if (b64 != null) {
+                    try {
+                        val payload = org.json.JSONObject()
+                        payload.put("base64", b64)
+                        val req = Request.Builder().url(backendBaseUrl + "/uploadImage").post(
+                            payload.toString().toRequestBody("application/json".toMediaType())
+                        ).build()
+                        val resp = com.yx.chatrobot.network.client.newCall(req).execute()
+                        val bodyStr = resp.body?.string() ?: "{}"
+                        resp.close()
+                        val json = org.json.JSONObject(bodyStr)
+                        if (json.optBoolean("ok")) {
+                            finalUri = backendBaseUrl + json.optString("path")
+                        }
+                    } catch (_: Exception) { finalUri = null }
+                }
                 val msg = MessageUiState(
                     name = configUiState.robotName,
                     time = Date().time / 1000,
                     content = content,
                     isSelf = false,
                     status = "sent",
-                    imageUri = when {
-                        b64 != null -> "base64:" + b64
-                        url != null -> url
-                        else -> null
-                    }
+                    imageUri = finalUri ?: (url ?: (if (b64 != null) "base64:" + b64 else null))
                 )
                 viewModelScope.launch {
                     val sid = requireSessionId()
                     messageRepository.insertMessage(msg.toMessage(userState.value.id).copy(sessionId = sid))
+                    val payload = org.json.JSONObject()
+                    payload.put("name", msg.name)
+                    payload.put("time", msg.time)
+                    payload.put("content", msg.content)
+                    payload.put("user_id", userState.value.id)
+                    payload.put("is_self", false)
+                    payload.put("session_id", sid)
+                    payload.put("image_uri", msg.imageUri)
+                    payload.put("status", msg.status)
+                    try {
+                        val url = backendBaseUrl + "/messages"
+                        val req = Request.Builder().url(url).post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                        com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+                        })
+                    } catch (_: Exception) {}
                 }
                 isLoading = false
             }
@@ -344,6 +377,23 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
         messageRepository.insertMessage(
             tmp.toMessage(userState.value.id).copy(sessionId = sid, imageUri = imageUri)
         )
+        val payload = org.json.JSONObject()
+        payload.put("name", tmp.name)
+        payload.put("time", tmp.time)
+        payload.put("content", tmp.content)
+        payload.put("user_id", userState.value.id)
+        payload.put("is_self", isSelf)
+        payload.put("session_id", sid)
+        payload.put("image_uri", imageUri)
+        payload.put("status", status)
+        try {
+            val url = backendBaseUrl + "/messages"
+            val req = Request.Builder().url(url).post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+            com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+            })
+        } catch (_: Exception) {}
         delay(100)
         listState.scrollToItem(chatListState.value.chatList.size - 1)
     }
@@ -362,6 +412,19 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
                     userId = userId
                 )
             )
+            try {
+                val payload = org.json.JSONObject().apply {
+                    put("user_id", userId)
+                    put("title", "新对话")
+                }
+                val req = Request.Builder().url(backendBaseUrl + "/conversations").post(
+                    payload.toString().toRequestBody("application/json".toMediaType())
+                ).build()
+                com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                    override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+                })
+            } catch (_: Exception) {}
             currentSessionIdFlow.value = sid
         }
     }
@@ -385,6 +448,19 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
                     userId = userId
                 )
             )
+            try {
+                val payload = org.json.JSONObject().apply {
+                    put("user_id", userId)
+                    put("title", title)
+                }
+                val req = Request.Builder().url(backendBaseUrl + "/conversations").post(
+                    payload.toString().toRequestBody("application/json".toMediaType())
+                ).build()
+                com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                    override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                    override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+                })
+            } catch (_: Exception) {}
             currentSessionIdFlow.value = sid
         }
     }
@@ -401,6 +477,7 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
         }
         return currentSessionIdFlow.value
     }
+    val backendBaseUrl = com.yx.chatrobot.BuildConfig.BACKEND_BASE_URL
  
     fun getVisionReply(imageUri: String, prompt: String, resolver: android.content.ContentResolver) {
         updateMessageUiState(prompt, true)
@@ -417,12 +494,23 @@ fun updateMessageUiState(result: String, isSelf: Boolean, imageUri: String? = nu
                 image_base64 = imageUri.removePrefix("base64:")
             )
             else -> {
-                val b64 = try {
+                val (urlStr, b64) = try {
                     val uri = android.net.Uri.parse(imageUri)
                     val bytes = resolver.openInputStream(uri)?.readBytes() ?: ByteArray(0)
-                    android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                } catch (e: Exception) { "" }
-                com.yx.chatrobot.domain.VisionContent(
+                    val enc = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    val payload = org.json.JSONObject().put("base64", enc)
+                    val req = Request.Builder().url(backendBaseUrl + "/uploadImage").post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                    val resp = com.yx.chatrobot.network.client.newCall(req).execute()
+                    val bodyStr = resp.body?.string() ?: "{}"; resp.close()
+                    val json = org.json.JSONObject(bodyStr)
+                    val path = if (json.optBoolean("ok")) json.optString("path") else ""
+                    val full = if (path.isNotEmpty()) backendBaseUrl + path else ""
+                    full to enc
+                } catch (_: Exception) { "" to "" }
+                if (urlStr.isNotEmpty()) com.yx.chatrobot.domain.VisionContent(
+                    type = "image_url",
+                    image_url = com.yx.chatrobot.domain.VisionImageUrl(url = urlStr)
+                ) else com.yx.chatrobot.domain.VisionContent(
                     type = "input_image",
                     image_base64 = b64
                 )

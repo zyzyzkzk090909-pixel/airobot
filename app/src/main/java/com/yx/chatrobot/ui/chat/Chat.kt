@@ -39,6 +39,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import android.util.Base64
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import android.Manifest
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -132,7 +139,32 @@ fun UserInput(
                     contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
                 ) { uri ->
                     if (uri != null) {
-                        viewModel.updateMessageUiState("[图片]", true, uri.toString())
+                        val ctx = LocalContext.current
+                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            try {
+                                val input = ctx.contentResolver.openInputStream(uri)
+                                val bytes = input?.readBytes() ?: ByteArray(0)
+                                input?.close()
+                                val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                val payload = org.json.JSONObject().put("base64", b64)
+                                val req = okhttp3.Request.Builder().url(viewModel.backendBaseUrl + "/uploadImage").post(
+                                    payload.toString().toRequestBody("application/json".toMediaType())
+                                ).build()
+                                val resp = com.yx.chatrobot.network.client.newCall(req).execute()
+                                val bodyStr = resp.body?.string() ?: "{}"; resp.close()
+                                val json = org.json.JSONObject(bodyStr)
+                                val path = if (json.optBoolean("ok")) json.optString("path") else ""
+                                val full = if (path.isNotEmpty()) viewModel.backendBaseUrl + path else uri.toString()
+                                with(kotlinx.coroutines.Dispatchers.Main) {}
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    viewModel.updateMessageUiState("[图片]", true, full)
+                                }
+                            } catch (_: Exception) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    viewModel.updateMessageUiState("[图片]", true, uri.toString())
+                                }
+                            }
+                        }
                     }
                 }
                 val fullWidthModifier =
@@ -281,12 +313,14 @@ fun MessageItem(messageUiState: MessageUiState, viewModel: MainViewModel? = null
                     val context = LocalContext.current
                     val uriHandler = LocalUriHandler.current
                     var bmp by remember(messageUiState.imageUri) { mutableStateOf<android.graphics.Bitmap?>(null) }
+                    var showPreview by remember { mutableStateOf(false) }
+                    var saving by remember { mutableStateOf(false) }
                     LaunchedEffect(messageUiState.imageUri) {
                         try {
                             val uriStr = messageUiState.imageUri
                             if (uriStr!!.startsWith("base64:")) {
                                 val pure = uriStr.removePrefix("base64:")
-                                val bytes = Base64.decode(pure, Base64.DEFAULT)
+                                val bytes = try { Base64.decode(pure, Base64.DEFAULT) } catch (_: Exception) { Base64.decode(pure, Base64.NO_WRAP) }
                                 bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                             } else if (uriStr.startsWith("http")) {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -316,7 +350,77 @@ fun MessageItem(messageUiState: MessageUiState, viewModel: MainViewModel? = null
                                 .fillMaxWidth()
                                 .heightIn(min = 120.dp)
                                 .padding(4.dp)
+                                .clickable { showPreview = true }
                         )
+                        if (showPreview) {
+                            val requestWrite = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                                if (granted) {
+                                    try {
+                                        val name = "ChatRobot_" + System.currentTimeMillis() + ".png"
+                                        val values = android.content.ContentValues().apply {
+                                            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                                            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ChatRobot")
+                                        }
+                                        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                        if (uri != null) {
+                                            context.contentResolver.openOutputStream(uri)?.use { out ->
+                                                bitmapLocal.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                            }
+                                            Toast.makeText(context, "已保存到图库", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } catch (_: Exception) {
+                                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "未授予存储权限", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            androidx.compose.ui.window.Dialog(onDismissRequest = { showPreview = false }) {
+                                Surface(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = bitmapLocal.asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp).padding(8.dp)
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Button(onClick = {
+                                                saving = true
+                                                val needPermission = android.os.Build.VERSION.SDK_INT < 29
+                                                if (needPermission && ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                                                    requestWrite.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                                    saving = false
+                                                } else {
+                                                    try {
+                                                        val name = "ChatRobot_" + System.currentTimeMillis() + ".png"
+                                                        val values = android.content.ContentValues().apply {
+                                                            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                                                            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                                            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ChatRobot")
+                                                        }
+                                                        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                                        if (uri != null) {
+                                                            context.contentResolver.openOutputStream(uri)?.use { out ->
+                                                                bitmapLocal.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                                                            }
+                                                            Toast.makeText(context, "已保存到图库", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    } catch (_: Exception) {
+                                                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                                    } finally { saving = false }
+                                                }
+                                            }) { Text(if (saving) "保存中" else "保存") }
+                                            Button(onClick = { showPreview = false }) { Text("关闭") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     } else if (messageUiState.imageUri!!.startsWith("http")) {
                         Text(
                             text = "点击查看生成图片",
@@ -396,4 +500,3 @@ fun TypingIndicator() {
         Box(modifier = Modifier.size((12 * s2.value).dp).clip(CircleShape).background(MaterialTheme.colors.secondary))
     }
 }
-

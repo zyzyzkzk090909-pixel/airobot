@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Request
 
 class LoginViewModel(
     private val userRepository: UserRepository,
@@ -86,6 +89,20 @@ class LoginViewModel(
                                 "这个人很懒，没有签名"
                             )
                         )
+                        try {
+                            val payload = org.json.JSONObject().apply {
+                                put("account", loginUiState.account)
+                                put("password_hash", encode(loginUiState.password))
+                                put("name", "用户")
+                            }
+                            val req = Request.Builder().url(com.yx.chatrobot.BuildConfig.BACKEND_BASE_URL + "/users").post(
+                                payload.toString().toRequestBody("application/json".toMediaType())
+                            ).build()
+                            com.yx.chatrobot.network.client.newCall(req).enqueue(object: okhttp3.Callback {
+                                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+                                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) { response.close() }
+                            })
+                        } catch (_: Exception) {}
                         infoAlert("注册成功","直接登录即可开始使用")
                     } else {
                         infoAlert("注册失败","当前账号已被使用")
@@ -142,4 +159,3 @@ class LoginViewModel(
         return ""
     }
 }
-
