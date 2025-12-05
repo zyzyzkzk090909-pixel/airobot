@@ -4,6 +4,71 @@
 
 本项目定位为“小型 AI 对话流 App”，在移动端统一文本对话、图片理解与图片生成三条能力链路，提供顺畅、连贯且可扩展的产品体验。项目采用 Kotlin + Jetpack Compose 构建界面，MVVM + Repository 保持分层清晰，Room + DataStore 管理持久化数据，网络层以 Retrofit/OkHttp 接入 Doubao Ark（火山方舟）端点。你所做的改动也已纳入本 README：包括“思考时双圈动画指示”“数据存储功能”“登录功能”等。
 
+
+---
+
+## 运行方式
+
+### 环境要求
+
+- 操作系统：Windows / macOS / Linux
+- Android Studio（推荐最新版）
+- JDK：17 或更高
+- Gradle Wrapper：8.9
+- AGP（Android Gradle Plugin）：8.7.0
+- Compose 编译器：1.5.14
+- 依赖项：Retrofit、OkHttp、Room、DataStore
+
+### 本地运行步骤
+
+1. 克隆仓库
+
+   ```bash
+   git clone https://github.com/zyzyzkzk090909-pixel/airobot.git
+   cd airobot
+   ```
+
+2. 配置 Android Studio
+
+   打开 Android Studio，选择 "Open Project"，然后选择项目文件夹 `airobot`。
+
+3. 同步项目依赖
+
+   在 Android Studio 中，点击 Sync Now 以确保 Gradle 构建工具正确下载所有必要的依赖。
+
+4. 配置 API 密钥
+
+   在项目根目录创建 `local.properties` 文件，并添加：
+
+   ```properties
+   DOUBAO_API_KEY=your_api_key_here
+   ```
+
+   请勿将密钥提交到公共仓库。
+
+5. 编译并运行
+
+   - 命令行：
+
+     ```bash
+     ./gradlew clean assembleDebug   # macOS/Linux
+     gradlew.bat clean assembleDebug # Windows
+     ```
+
+   - 在 Android Studio 中选择目标设备或模拟器进行安装和启动。
+
+6. 启动应用
+
+   启动后进入主界面，支持文本对话、图片理解与生成等功能。
+
+### 可选：部署到生产环境
+
+构建发布版本 APK：
+
+```bash
+./gradlew clean assembleRelease   # macOS/Linux
+gradlew.bat clean assembleRelease # Windows
+```
 ## 一、基础项目说明
 
 - 名称：ChatRobot（小型AI对话流 App）
