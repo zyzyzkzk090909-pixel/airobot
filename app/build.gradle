@@ -11,7 +11,7 @@ if (localPropsFile.exists()) {
 }
 def OPENAI_API_KEY = localProps.getProperty("OPENAI_API_KEY", "")
 def DOUBAO_API_KEY = localProps.getProperty("DOUBAO_API_KEY", "")
-def BACKEND_BASE_URL = localProps.getProperty("BACKEND_BASE_URL", "http://10.0.2.2:3000")
+def BACKEND_BASE_URL = localProps.getProperty("BACKEND_BASE_URL", "http://127.0.0.1:3000")
 
 android {
     namespace 'com.yx.chatrobot'

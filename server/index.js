@@ -67,6 +67,17 @@ app.post('/uploadImage', async (req, res) => {
   }
 })
 
+app.get('/health', async (req, res) => {
+  try {
+    const conn = await pool.getConnection()
+    await conn.query('SELECT 1')
+    conn.release()
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false })
+  }
+})
+
 app.post('/users', async (req, res) => {
   const { account, password_hash, name } = req.body || {}
   if (!account || !password_hash) return res.status(400).json({ ok: false })
